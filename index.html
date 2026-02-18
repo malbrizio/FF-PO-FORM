@@ -571,23 +571,25 @@
     }
     .po-page {
       box-shadow: none;
-      width: 100%;
-      max-height: 100vh;
-      padding: 15px 25px 10px 25px;
+      width: 10in;
+      padding: 0.15in 0.2in;
       page-break-inside: avoid;
-      overflow: hidden;
+      transform: scale(0.92);
+      transform-origin: top left;
     }
-    .po-header { margin-bottom: 4px; }
-    .po-header img { max-height: 38px; }
-    .po-subtitle { font-size: 12px !important; margin-bottom: 1px !important; }
-    .po-date { font-size: 10px !important; margin-bottom: 4px !important; }
-    .po-table { margin-bottom: 4px !important; }
-    .po-table td, .po-table th { padding: 2px 4px !important; font-size: 8px !important; }
-    .po-footer { margin-top: 6px !important; font-size: 8px !important; line-height: 1.3 !important; }
-    .empty-row td { padding: 1px 4px !important; height: 14px !important; }
+    .po-header { margin-bottom: 2px; }
+    .po-header img.logo-mark { max-height: 36px; }
+    .po-header img.po-title-img { max-height: 36px; }
+    .po-subtitle { font-size: 11px !important; margin-bottom: 0px !important; }
+    .po-date { font-size: 9px !important; margin-bottom: 3px !important; }
+    .po-table { margin-bottom: 3px !important; }
+    .po-table td, .po-table th { padding: 2px 3px !important; font-size: 7.5px !important; }
+    .po-table .empty-row td { height: 12px !important; padding: 1px 3px !important; }
+    .po-footer { margin-top: 4px !important; font-size: 7px !important; line-height: 1.2 !important; }
+    .mockup-placeholder, .po-right img { max-height: 450px !important; }
     @page {
       size: landscape;
-      margin: 0.25in;
+      margin: 0.2in;
     }
   }
 </style>
@@ -1356,6 +1358,27 @@
     ws.getCell(`A${r}`).value = '*Approval constitutes acceptance of all listed details as final.*';
     ws.getCell(`A${r}`).font = { name: 'Arial', size: 8 };
     ws.mergeCells(`A${r}:J${r}`);
+
+    // ── MOCKUP IMAGES (right side) ──
+    for (let num = 1; num <= 2; num++) {
+      if (mockupData[num]) {
+        try {
+          const b64 = mockupData[num].split(',')[1];
+          const ext = mockupData[num].includes('image/png') ? 'png' : 'jpeg';
+          const imgId = wb.addImage({ base64: b64, extension: ext });
+          const col = 11; // column K
+          const startRow = num === 1 ? 1 : 16;
+          ws.addImage(imgId, {
+            tl: { col: col - 1, row: startRow - 1 },
+            br: { col: col + 5, row: startRow + 14 },
+            editAs: 'oneCell'
+          });
+        } catch(e) { console.warn('Image embed failed:', e); }
+      }
+    }
+
+    // Set right-side columns wider for image
+    for (let i = 11; i <= 16; i++) ws.getColumn(i).width = 12;
 
     // Generate & download
     const buf = await wb.xlsx.writeBuffer();
