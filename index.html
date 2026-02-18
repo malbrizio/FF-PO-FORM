@@ -562,25 +562,36 @@
 
   /* ===== PRINT STYLES ===== */
   @media print {
-    body { background: #fff; }
+    body { background: #fff; margin: 0; padding: 0; }
     .editor-panel { display: none !important; }
     .preview-area {
       margin-left: 0;
       padding: 0;
+      display: block;
     }
     .po-page {
       box-shadow: none;
       width: 100%;
-      padding: 20px 30px;
+      max-height: 100vh;
+      padding: 15px 25px 10px 25px;
       page-break-inside: avoid;
+      overflow: hidden;
     }
+    .po-header { margin-bottom: 4px; }
+    .po-header img { max-height: 38px; }
+    .po-subtitle { font-size: 12px !important; margin-bottom: 1px !important; }
+    .po-date { font-size: 10px !important; margin-bottom: 4px !important; }
+    .po-table { margin-bottom: 4px !important; }
+    .po-table td, .po-table th { padding: 2px 4px !important; font-size: 8px !important; }
+    .po-footer { margin-top: 6px !important; font-size: 8px !important; line-height: 1.3 !important; }
+    .empty-row td { padding: 1px 4px !important; height: 14px !important; }
     @page {
       size: landscape;
-      margin: 0.3in;
+      margin: 0.25in;
     }
   }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 </head>
 <body>
 
@@ -937,7 +948,7 @@
     const tbody = document.getElementById('previewStyleBody');
     tbody.innerHTML = '';
     let total = 0;
-    const minRows = 8;
+    const minRows = 4;
     const sizes = ['xs','s','m','l','xl','xxl','xxxl','xxxxl','alt'];
 
     styleRows.forEach(row => {
@@ -1138,74 +1149,224 @@
   }
 
   // Initialize
-  // ===== EXPORT TO EXCEL =====
-  function exportToExcel() {
+  // ===== EXPORT TO EXCEL (FORMATTED PO FORM) =====
+  async function exportToExcel() {
     const v = id => document.getElementById(id).value || '';
-    const customer = v('customerName');
-    const po = v('poNumber');
+    const customer = v('customerName') || 'Customer Name';
+    const po = v('poNumber') || 'XXXXX';
     const part = v('partNumber');
-    const monthYear = v('monthYear');
+    const monthYear = v('monthYear') || 'Month/Year';
 
-    // Build header rows matching batch template format
-    const catHeaders = [
-      'Job Info','','','',
-      'Style 1','','','','','','','','','',
-      'Style 2','','','','','','','','','',
-      'Style 3','','','','','','','','','',
-      'Ink Colors','','','','','','','','','',
-      'Print Specs','','','',
-      'Details','','','',''
-    ];
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Purchase Order', {
+      pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 1 }
+    });
 
-    const colHeaders = [
-      'Customer Name','PO Number','Part','Month/Year',
-      'Style 1 Name','S1 XS','S1 S','S1 M','S1 L','S1 XL','S1 XXL','S1 3XL','S1 4XL','S1 ALT',
-      'Style 2 Name','S2 XS','S2 S','S2 M','S2 L','S2 XL','S2 XXL','S2 3XL','S2 4XL','S2 ALT',
-      'Style 3 Name','S3 XS','S3 S','S3 M','S3 L','S3 XL','S3 XXL','S3 3XL','S3 4XL','S3 ALT',
-      'Front Ink 1','Front Ink 2','Front Ink 3','Front Ink 4','Front Ink 5',
-      'Back Ink 1','Back Ink 2','Back Ink 3','Back Ink 4','Back Ink 5',
-      'Front Dimensions','Back Dimensions','PA 3','PA 4',
-      'File Name','Shipping Address','Special Instructions','In-Hand Date','Fulfillment'
-    ];
+    // Color constants
+    const GREEN = 'FF4A5A2B';
+    const DARK = 'FF1A1A1A';
+    const RED = 'FFC0392B';
+    const LGRAY = 'FFF5F5F5';
+    const BORDER_CLR = 'FFDDDDDD';
+    const WHITE = 'FFFFFFFF';
 
-    // Build data row from form
+    const thinBorder = { style: 'thin', color: { argb: BORDER_CLR } };
+    const borders = { top: thinBorder, bottom: thinBorder, left: thinBorder, right: thinBorder };
+
+    const greenHeader = (cell, text) => {
+      cell.value = text;
+      cell.font = { name: 'Arial', size: 8, bold: true, color: { argb: WHITE } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = borders;
+    };
+
+    const dataCell = (cell, text, opts = {}) => {
+      cell.value = text || '';
+      cell.font = { name: 'Arial', size: 9, bold: !!opts.bold, color: { argb: opts.color || DARK } };
+      if (opts.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: opts.fill } };
+      cell.alignment = { horizontal: opts.align || 'center', vertical: 'middle' };
+      cell.border = borders;
+    };
+
+    // Column widths: A=style, B-J=sizes (9 cols)
+    ws.getColumn(1).width = 30;
+    for (let i = 2; i <= 10; i++) ws.getColumn(i).width = 6;
+
+    // ── ROW 1: Title ──
+    let r = 1;
+    let title = `${customer} | PO ${po}`;
+    if (part) title += ` ${part}`;
+    ws.getCell(`A${r}`).value = title;
+    ws.getCell(`A${r}`).font = { name: 'Arial', size: 14, bold: true, color: { argb: DARK } };
+    ws.mergeCells(`A${r}:J${r}`);
+    r++;
+
+    // ── ROW 2: Date ──
+    ws.getCell(`A${r}`).value = monthYear;
+    ws.getCell(`A${r}`).font = { name: 'Arial', size: 11, color: { argb: 'FF444444' } };
+    ws.mergeCells(`A${r}:J${r}`);
+    r++;
+    r++; // blank row
+
+    // ── STYLE TABLE HEADERS ──
+    const sizeLabels = ['XS','S','M','L','XL','XXL','3XL','4XL','ALT'];
+    greenHeader(ws.getCell(`A${r}`), 'STYLE # + COLOR');
+    sizeLabels.forEach((s, i) => greenHeader(ws.getCell(r, i + 2), s));
+    ws.getRow(r).height = 18;
+    r++;
+
+    // ── STYLE ROWS ──
     const sizes = ['xs','s','m','l','xl','xxl','xxxl','xxxxl','alt'];
-    const getStyle = (idx) => {
-      const row = styleRows[idx];
-      if (!row) return ['','','','','','','','','',''];
-      return [row.style, ...sizes.map(s => row[s] || '')];
-    };
+    const maxStyleRows = Math.max(styleRows.length, 4);
+    for (let i = 0; i < maxStyleRows; i++) {
+      const row = styleRows[i];
+      dataCell(ws.getCell(`A${r}`), row ? row.style : '', { align: 'left' });
+      sizes.forEach((s, j) => {
+        dataCell(ws.getCell(r, j + 2), row ? row[s] : '');
+      });
+      ws.getRow(r).height = 18;
+      r++;
+    }
 
-    const getInks = (side) => {
-      const vals = inkRows.map(r => r[side]).filter(v => v);
-      while (vals.length < 5) vals.push('');
-      return vals.slice(0, 5);
-    };
+    // ── TOTAL ROW ──
+    const totalRow = r;
+    dataCell(ws.getCell(`A${r}`), 'TOTAL ORDER', { bold: true, fill: LGRAY });
+    for (let i = 2; i <= 9; i++) dataCell(ws.getCell(r, i), '', { fill: LGRAY });
+    // Sum formula for last size column
+    const startDataRow = totalRow - maxStyleRows;
+    ws.getCell(`J${r}`).value = { formula: `SUM(B${startDataRow}:J${totalRow - 1})` };
+    ws.getCell(`J${r}`).font = { name: 'Arial', size: 9, bold: true };
+    ws.getCell(`J${r}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LGRAY } };
+    ws.getCell(`J${r}`).alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getCell(`J${r}`).border = borders;
+    r++;
+    r++; // blank
 
-    const dataRow = [
-      customer, po, part, monthYear,
-      ...getStyle(0),
-      ...getStyle(1),
-      ...getStyle(2),
-      ...getInks('front'),
-      ...getInks('back'),
-      v('frontDim'), v('backDim'), v('frontPA'), v('backPA'),
-      v('fileNames'), v('shippingAddr'), v('specialInstructions'), v('inHandDate'), v('fulfillment')
-    ];
+    // ── INK COLORS & PRINT SPECS ──
+    // Headers
+    greenHeader(ws.getCell(`A${r}`), 'INK COLORS');
+    ws.mergeCells(`A${r}:E${r}`);
+    greenHeader(ws.getCell(`F${r}`), 'PRINT SPECS');
+    ws.mergeCells(`F${r}:J${r}`);
+    r++;
 
-    const ws = XLSX.utils.aoa_to_sheet([catHeaders, colHeaders, dataRow]);
+    // Sub-headers
+    greenHeader(ws.getCell(`A${r}`), 'FRONT');
+    ws.mergeCells(`A${r}:C${r}`);
+    greenHeader(ws.getCell(`D${r}`), 'BACK');
+    ws.mergeCells(`D${r}:E${r}`);
+    greenHeader(ws.getCell(`F${r}`), 'FRONT');
+    ws.mergeCells(`F${r}:H${r}`);
+    greenHeader(ws.getCell(`I${r}`), 'BACK');
+    ws.mergeCells(`I${r}:J${r}`);
+    r++;
 
-    // Set column widths
-    ws['!cols'] = colHeaders.map((h, i) => ({ wch: i === 0 ? 20 : h.includes('Name') ? 30 : 14 }));
+    // Ink rows + dimensions
+    const maxInks = Math.max(inkRows.length, 2);
+    for (let i = 0; i < maxInks; i++) {
+      const row = inkRows[i];
+      dataCell(ws.getCell(`A${r}`), row ? row.front : '');
+      ws.mergeCells(`A${r}:C${r}`);
+      dataCell(ws.getCell(`D${r}`), row ? row.back : '');
+      ws.mergeCells(`D${r}:E${r}`);
+      if (i === 0) {
+        dataCell(ws.getCell(`F${r}`), v('frontDim'));
+        ws.mergeCells(`F${r}:H${r}`);
+        dataCell(ws.getCell(`I${r}`), v('backDim'));
+        ws.mergeCells(`I${r}:J${r}`);
+      } else {
+        dataCell(ws.getCell(`F${r}`), '');
+        ws.mergeCells(`F${r}:H${r}`);
+        dataCell(ws.getCell(`I${r}`), '');
+        ws.mergeCells(`I${r}:J${r}`);
+      }
+      r++;
+    }
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'PO Data');
+    // PA 3 / PA 4 headers
+    dataCell(ws.getCell(`A${r}`), '');
+    ws.mergeCells(`A${r}:C${r}`);
+    dataCell(ws.getCell(`D${r}`), '');
+    ws.mergeCells(`D${r}:E${r}`);
+    greenHeader(ws.getCell(`F${r}`), 'PA 3');
+    ws.mergeCells(`F${r}:H${r}`);
+    greenHeader(ws.getCell(`I${r}`), 'PA 4');
+    ws.mergeCells(`I${r}:J${r}`);
+    r++;
 
-    // Generate filename
-    const safeName = (customer || 'PO').replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = po ? `PO_${po}_${safeName}.xlsx` : `PO_${safeName}.xlsx`;
+    // PA values
+    dataCell(ws.getCell(`A${r}`), '');
+    ws.mergeCells(`A${r}:C${r}`);
+    dataCell(ws.getCell(`D${r}`), '');
+    ws.mergeCells(`D${r}:E${r}`);
+    dataCell(ws.getCell(`F${r}`), v('frontPA'));
+    ws.mergeCells(`F${r}:H${r}`);
+    dataCell(ws.getCell(`I${r}`), v('backPA'));
+    ws.mergeCells(`I${r}:J${r}`);
+    r++;
+    r++; // blank
 
-    XLSX.writeFile(wb, fileName);
+    // ── SHIPPING & FILE NAMES ──
+    greenHeader(ws.getCell(`A${r}`), 'SHIPPING INFORMATION');
+    ws.mergeCells(`A${r}:E${r}`);
+    greenHeader(ws.getCell(`F${r}`), 'FILE NAMES');
+    ws.mergeCells(`F${r}:J${r}`);
+    r++;
+
+    dataCell(ws.getCell(`A${r}`), v('shippingAddr'), { align: 'left' });
+    ws.mergeCells(`A${r}:E${r}`);
+    dataCell(ws.getCell(`F${r}`), v('fileNames'), { align: 'left' });
+    ws.mergeCells(`F${r}:J${r}`);
+    ws.getRow(r).height = 30;
+    r++;
+    r++; // blank
+
+    // ── SPECIAL / IN-HAND / FULFILLMENT ──
+    greenHeader(ws.getCell(`A${r}`), 'SPECIAL INSTRUCTIONS');
+    ws.mergeCells(`A${r}:E${r}`);
+    greenHeader(ws.getCell(`F${r}`), 'IN-HAND DATE');
+    ws.mergeCells(`F${r}:H${r}`);
+    greenHeader(ws.getCell(`I${r}`), 'FULFILLMENT');
+    ws.mergeCells(`I${r}:J${r}`);
+    r++;
+
+    dataCell(ws.getCell(`A${r}`), v('specialInstructions'), { align: 'left' });
+    ws.mergeCells(`A${r}:E${r}`);
+    dataCell(ws.getCell(`F${r}`), v('inHandDate'));
+    ws.mergeCells(`F${r}:H${r}`);
+    dataCell(ws.getCell(`I${r}`), v('fulfillment'));
+    ws.mergeCells(`I${r}:J${r}`);
+    r++;
+    r++; // blank
+
+    // ── FOOTER ──
+    ws.getCell(`A${r}`).value = 'Important Final Notice:';
+    ws.getCell(`A${r}`).font = { name: 'Arial', size: 8, bold: true, color: { argb: RED }, underline: true };
+    ws.mergeCells(`A${r}:J${r}`);
+    r++;
+    ws.getCell(`A${r}`).value = 'By providing your approval, you confirm that all information detailed above is accurate and complete, and that your order is ready for production.';
+    ws.getCell(`A${r}`).font = { name: 'Arial', size: 8, italic: true, color: { argb: RED } };
+    ws.mergeCells(`A${r}:J${r}`);
+    r++;
+    ws.getCell(`A${r}`).value = 'Please Note: Once approval is given, Forever Fierce is not obligated to make changes or corrections to the order after it has been printed or delivered.';
+    ws.getCell(`A${r}`).font = { name: 'Arial', size: 8 };
+    ws.mergeCells(`A${r}:J${r}`);
+    r++;
+    ws.getCell(`A${r}`).value = '*Approval constitutes acceptance of all listed details as final.*';
+    ws.getCell(`A${r}`).font = { name: 'Arial', size: 8 };
+    ws.mergeCells(`A${r}:J${r}`);
+
+    // Generate & download
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeName = (customer).replace(/[^a-zA-Z0-9]/g, '_');
+    a.href = url;
+    a.download = `PO_${po}_${safeName}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   init();
