@@ -1360,25 +1360,34 @@
     ws.mergeCells(`A${r}:J${r}`);
 
     // ── MOCKUP IMAGES (right side) ──
+    for (let i = 11; i <= 18; i++) ws.getColumn(i).width = 10;
+    // Set tall rows for image area
+    for (let i = 1; i <= 28; i++) {
+      const row = ws.getRow(i);
+      if (!row.height || row.height < 18) row.height = 18;
+    }
+
+    let imgCount = 0;
     for (let num = 1; num <= 2; num++) {
       if (mockupData[num]) {
         try {
-          const b64 = mockupData[num].split(',')[1];
-          const ext = mockupData[num].includes('image/png') ? 'png' : 'jpeg';
-          const imgId = wb.addImage({ base64: b64, extension: ext });
-          const col = 11; // column K
-          const startRow = num === 1 ? 1 : 16;
+          const parts = mockupData[num].split(',');
+          const b64Data = parts[1];
+          const ext = parts[0].includes('png') ? 'png' : 'jpeg';
+          const imgId = wb.addImage({ base64: b64Data, extension: ext });
+          const topRow = num === 1 ? 0 : 15;
           ws.addImage(imgId, {
-            tl: { col: col - 1, row: startRow - 1 },
-            br: { col: col + 5, row: startRow + 14 },
-            editAs: 'oneCell'
+            tl: { col: 10, row: topRow },
+            ext: { width: 480, height: 360 }
           });
-        } catch(e) { console.warn('Image embed failed:', e); }
+          imgCount++;
+        } catch(e) { alert('Image embed error: ' + e.message); }
       }
     }
 
-    // Set right-side columns wider for image
-    for (let i = 11; i <= 16; i++) ws.getColumn(i).width = 12;
+    if (imgCount > 0) {
+      ws.getCell('K1').value = ''; // ensure column exists
+    }
 
     // Generate & download
     const buf = await wb.xlsx.writeBuffer();
